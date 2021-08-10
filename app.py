@@ -16,20 +16,30 @@ server = app.server
 #dts = pd.read_csv('./Locationregions.csv', sep= ',')
 #lab = pd.read_csv('./laborregions.csv', sep= ',')
 
-dsn_tns = cx_Oracle.makedsn('jllorclprd.cmiptbjmy4tj.eu-west-1.rds.amazonaws.com', '1521', service_name='ORCL') 
-conn = cx_Oracle.connect(user=r'CONSTANTINE_MICHALIS', password=r'Qror25c_H85o', dsn=dsn_tns) 
+dsn_tns = cx_Oracle.makedsn(r'prd30max.cmiptbjmy4tj.eu-west-1.rds.amazonaws.com', '1521', service_name='PRD30MAX') 
+conn = cx_Oracle.connect(user=r'CONSTANTINE_MICHALIS', password=r'9*tV&#QKB#8g', dsn=dsn_tns) 
 
-dts = conn.cursor()
-dts.execute("""select distinct l.location, pluspcustomer,   (select name from pluspcustomer where customer = pluspcustomer) name,  s.latitudey, s.longitudex, a.ancestor, a2.ancestor as branch, c.type, l.status, s.postalcode
-from locations l
-join serviceaddress s on saddresscode = addresscode
-join locancestor a on a.location = l.location
-join locancestor a2 on a2.location = l.location
-join pluspcustomer c on c.customer = l.pluspcustomer
-where (a.ancestor not like ('L%') and a.ancestor not like ('%00000%') and a2.ancestor not like ('L%') and a2.ancestor like ('%00000%') and a2.ancestor != '000000')-- and longitudex < -5.5 and a.ancestor = (select parent from lochierarchy where location = l.location)
-and (pluspcustomer in (select customer from pluspagreement where enddate>sysdate) and c.status = 'ACTIVE') 
-order by ancestor, pluspcustomer, location;""") # use triple quotes if you want to spread your query across multiple lines
 
+cur = conn.cursor()
+
+cur.execute("""select distinct l.location, pluspcustomer, c.name,  s.latitudey, s.longitudex, a.ancestor, a2.ancestor as branch, c.type, l.status, s.postalcode
+            from JLL_MX76_PRD30_1.locations l 
+            join JLL_MX76_PRD30_1.serviceaddress s on l.saddresscode = s.addresscode
+            join JLL_MX76_PRD30_1.locancestor a on a.location = l.location
+            join JLL_MX76_PRD30_1.locancestor a2 on a2.location = l.location
+            join JLL_MX76_PRD30_1.pluspcustomer c on c.customer = l.pluspcustomer
+            where ((a.ancestor not like ('L%')) and (a.ancestor not like ('%00000%')) and (a2.ancestor not like ('L%')) and (a2.ancestor like ('%00000%')) and (a2.ancestor != '000000'))
+            and (l.pluspcustomer in (select customer from JLL_MX76_PRD30_1.pluspagreement where enddate>sysdate) and c.status = 'ACTIVE')
+            """)
+
+rows = cur.fetchall()
+
+dts = pd.DataFrame(rows)
+
+col_names = list([row[0] for row in cur.description])
+dts.columns = col_names
+
+conn.close()
 
 dts = dts[dts['PLUSPCUSTOMER'] != 'C1000238']
 dts.dtypes
@@ -38,7 +48,6 @@ dts.BRANCH = dts.BRANCH.astype('object')
 dts.TYPE = dts.TYPE.astype('object') 
 lab.LOCATION = lab.LOCATION.astype('object') 
 token = open("./mapbox.token").read()
-
 
 
 mycols = ['#e4717a', '#5d8aa8', '#a4c639', '#ffa812', '#a67b5b', '#915c83']
